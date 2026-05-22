@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title></title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar" data-reveal>
+        <a class="brand" href="#home" data-world-name></a>
+        <nav class="nav-links" aria-label="">
+          <a href="#timeline" data-nav-timeline></a>
+          <a href="#gallery" data-nav-gallery></a>
+          <a href="#letter" data-nav-letter></a>
+        </nav>
+        <button class="music-toggle" type="button" data-music-toggle></button>
+      </header>
+
+      <main>
+        <section class="hero section-panel" id="home">
+          <div class="hero-photos" aria-hidden="true" data-hero-photos></div>
+          <div class="hero-copy" data-reveal>
+            <p class="eyebrow" data-hero-kicker></p>
+            <h1 data-site-title></h1>
+            <p class="hero-subtitle" data-subtitle></p>
+            <button class="primary-button" type="button" data-enter-button></button>
+          </div>
+          <div class="hero-note" data-scroll-note></div>
+        </section>
+
+        <section class="section-panel timeline-panel" id="timeline">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow" data-timeline-kicker></p>
+            <h2 data-timeline-title></h2>
+            <p data-timeline-intro></p>
+          </div>
+          <div class="scene-grid" data-scene-grid></div>
+        </section>
+
+        <section class="section-panel gallery-panel" id="gallery">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow" data-gallery-kicker></p>
+            <h2 data-gallery-title></h2>
+            <p data-gallery-intro></p>
+          </div>
+          <div class="gallery-stack" data-gallery-stack></div>
+          <div class="sketch-strip" data-sketch-strip></div>
+        </section>
+
+        <section class="section-panel letter-panel" id="letter">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow" data-letter-kicker></p>
+            <h2 data-letter-title></h2>
+            <p data-letter-intro></p>
+          </div>
+
+          <div class="letter-wrap" data-reveal>
+            <article class="letter-card is-visible" data-letter-card>
+              <div class="letter-lines" data-letter-lines></div>
+              <p class="letter-signature" data-letter-signature></p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer" data-footer></footer>
+    </div>
+
+    <div class="lightbox" data-lightbox aria-hidden="true">
+      <button class="lightbox-close" type="button" data-lightbox-close></button>
+      <button class="lightbox-arrow lightbox-prev" type="button" data-lightbox-prev></button>
+      <figure class="lightbox-frame">
+        <img alt="" data-lightbox-img>
+        <figcaption data-lightbox-caption></figcaption>
+      </figure>
+      <button class="lightbox-arrow lightbox-next" type="button" data-lightbox-next></button>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
