@@ -112,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="photo-upload-") as tmp:
         tmp_dir = Path(tmp)
         uploaded = []
+        download_failures = 0
         for index, url in enumerate(urls, 1):
             source_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
             if source_hash in existing_hashes:
@@ -120,12 +121,16 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 uploaded.append(download_image(url, source_hash, tmp_dir, index))
             except Exception as exc:  # noqa: BLE001
+                download_failures += 1
                 summary_lines.append(f"- 下载失败：{url} ({exc})")
 
         if not uploaded:
-            summary_lines.extend(["", "没有新的图片需要处理。"])
+            if download_failures:
+                summary_lines.extend(["", "所有图片都下载失败，网页没有更新。请检查附件链接或重新触发流程。"])
+            else:
+                summary_lines.extend(["", "没有新的图片需要处理。"])
             write_summary(args.summary_file, summary_lines)
-            return 0
+            return 1 if download_failures else 0
 
         new_photos: list[NewPhoto] = []
         for offset, item in enumerate(uploaded):
