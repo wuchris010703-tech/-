@@ -181,12 +181,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def extract_image_urls(body: str) -> list[str]:
     markdown_urls = re.findall(r"!\[[^\]]*\]\((https?://[^)\s]+)\)", body)
-    direct_urls = re.findall(r"https?://[^\s)>\]]+", body)
+    direct_urls = re.findall(r'''https?://[^\s)>\]"']+''', body)
     candidates = markdown_urls + direct_urls
     urls: list[str] = []
     seen: set[str] = set()
     for raw_url in candidates:
-        url = raw_url.rstrip(".,;")
+        url = raw_url.rstrip(".,;\"'")
         lowered = url.lower()
         looks_like_image = any(lowered.split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"])
         is_github_upload = "github.com/user-attachments/assets/" in lowered
@@ -225,7 +225,15 @@ def category_from_choice(value: str) -> str | None:
 def download_image(url: str, source_hash: str, tmp_dir: Path, index: int) -> UploadedImage:
     import requests
 
-    response = requests.get(url, timeout=45, headers={"User-Agent": "photo-upload-workflow"})
+    headers = {"User-Agent": "photo-upload-workflow"}
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if token and "github.com/user-attachments/assets/" in url.lower():
+        headers.update({
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/octet-stream",
+        })
+
+    response = requests.get(url, timeout=45, headers=headers, allow_redirects=True)
     response.raise_for_status()
     content_type = response.headers.get("content-type", "").split(";")[0]
     ext = mimetypes.guess_extension(content_type) or ".jpg"

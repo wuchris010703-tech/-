@@ -51,6 +51,7 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
           ISSUE_BODY_FILE: ${{ runner.temp }}/photo-upload-issue.md
+          GITHUB_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_VISION_MODEL: ${{ secrets.OPENAI_VISION_MODEL }}
         run: |
