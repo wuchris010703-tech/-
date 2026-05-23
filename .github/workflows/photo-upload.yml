@@ -1,0 +1,85 @@
+name: Photo Upload Auto Update
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to process
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: photo-upload-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  update-site:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.issue.labels.*.name, 'photo-upload') || startsWith(github.event.issue.title, '照片更新：')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install image tools
+        run: python -m pip install -r tools/requirements-photo-upload.txt
+
+      - name: Load issue body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_BODY_FILE: ${{ runner.temp }}/photo-upload-issue.md
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            gh issue view "$ISSUE_NUMBER" --json body --jq .body > "$ISSUE_BODY_FILE"
+          else
+            python -c "import os; from pathlib import Path; Path(os.environ['ISSUE_BODY_FILE']).write_text(os.environ.get('ISSUE_BODY', ''), encoding='utf-8')"
+          fi
+
+      - name: Process uploaded photos
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_BODY_FILE: ${{ runner.temp }}/photo-upload-issue.md
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_VISION_MODEL: ${{ secrets.OPENAI_VISION_MODEL }}
+        run: |
+          python tools/process_photo_upload.py \
+            --issue-body-file "$ISSUE_BODY_FILE" \
+            --issue-number "$ISSUE_NUMBER" \
+            --summary-file photo-upload-summary.md
+
+      - name: Commit generated update
+        id: commit
+        run: |
+          git add script.js public/photos public/art-cards/review-batch-20260521/accepted
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add uploaded photos from issue #${{ github.event.issue.number || inputs.issue_number }}"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        run: |
+          if [ -f photo-upload-summary.md ]; then
+            gh issue comment "$ISSUE_NUMBER" --body-file photo-upload-summary.md
+          fi

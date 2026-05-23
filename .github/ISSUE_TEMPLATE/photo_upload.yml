@@ -1,0 +1,44 @@
+name: 照片自动更新
+description: 上传一批新照片，让系统整理后更新网页
+title: "照片更新："
+labels: ["photo-upload"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        把照片拖到下面的“照片附件”区域。提交后，GitHub Action 会读取附件、整理分类、生成卡通小卡片，并把更新提交回网页仓库。
+
+        如果自动分类不准，可以重新开一个 issue 或手动调整生成的 `script.js`。
+  - type: dropdown
+    id: category
+    attributes:
+      label: 照片分类
+      description: 如果这一批照片属于同一类，建议直接指定；如果混合很多场景，选择自动识别。
+      options:
+        - 自动识别
+        - 居家日常 home
+        - 滑雪和雪地 ski
+        - 生病和陪伴 hospital
+        - 视频里的见面 video
+        - 娱乐时间 games
+        - 美厨娘时间 cooking
+        - 一起出去玩 outing
+        - 其他小瞬间 moments
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 照片说明
+      description: 可写地点、时间、人物或想放在网页上的配文。自动分类会参考这里的文字。
+      placeholder: 例如：这批是我们去滑雪时拍的，还有两张在路上吃饭的照片。
+    validations:
+      required: false
+  - type: textarea
+    id: photos
+    attributes:
+      label: 照片附件
+      description: 把 JPG、PNG、HEIC 转好的图片拖到这里。建议一次上传同一批相关照片。
+      placeholder: 把照片拖到这个输入框里，GitHub 会自动生成图片链接。
+    validations:
+      required: true

@@ -60,6 +60,20 @@ tracks: [
 
 网页会按照片编号和 `script.js` 里的 `CONFIG.sketches.assignments` 自动寻找对应的小卡片。当前小卡片区不再分类，会把所有生成的小卡片放在一条自动滚动轨道里展示。
 
+## 后期上传和自动更新
+
+这个项目现在仍然是 GitHub Pages 静态网页。静态网页不能直接接收访客上传并写回仓库，所以后期自动更新采用 GitHub Issue + GitHub Actions 的方式：
+
+1. 用户在仓库 Issues 里选择“照片自动更新”表单。
+2. 把多张照片拖进表单并提交。
+3. GitHub Action 自动下载图片、归类、生成卡通小卡片。
+4. Action 把新照片、新小卡片和更新后的 `script.js` 提交回仓库。
+5. GitHub Pages 自动重新发布网页。
+
+给上传者看的详细步骤见 `UPLOAD_PHOTOS.md`。
+
+详细维护说明见 `MAINTENANCE.md`。
+
 ## 部署到 GitHub Pages
 
 1. 新建一个 GitHub 仓库，把本项目作为静态网页仓库上传。
