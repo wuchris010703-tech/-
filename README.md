@@ -73,6 +73,8 @@ tracks: [
 
 给上传者看的详细步骤见 `UPLOAD_PHOTOS.md`。
 
+卡通小卡片的生成方法见 `docs/art-card-generation-guide.md`。
+
 详细维护说明见 `MAINTENANCE.md`。
 
 ## 部署到 GitHub Pages
