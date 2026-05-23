@@ -79,7 +79,8 @@ const CONFIG = {
       37: "postcard",
       38: "postcard",
       39: "postcard",
-      40: "postcard"
+      40: "postcard",
+      41: "crayon"
     }
   },
   letter: {
@@ -134,7 +135,8 @@ const CONFIG = {
     { id: 37, category: "cooking", file: "cooking/photo-037.jpg", style: "crayon", caption: "美厨娘认真吃饭的样子，也很值得夸。" },
     { id: 38, category: "ski", file: "ski/photo-038.jpg", style: "ink", caption: "滑雪累了也要拍一张。" },
     { id: 39, category: "ski", file: "ski/photo-039.jpg", style: "oil", caption: "滑雪路上的一张，雪落下来也刚刚好。" },
-    { id: 40, category: "ski", file: "ski/photo-040.jpg", style: "watercolor", caption: "滑雪这一类，要用这张收个漂亮的尾。" }
+    { id: 40, category: "ski", file: "ski/photo-040.jpg", style: "watercolor", caption: "滑雪这一类，要用这张收个漂亮的尾。" },
+    { id: 41, category: "home", file: "home/photo-041.jpg", style: "crayon", caption: "呼呼小猪！", sourceIssue: "2", sourceHash: "6f7918c57f00" }
   ],
   sceneCategories: [
     {
@@ -143,7 +145,7 @@ const CONFIG = {
       lines: [
         "咱们是两餐三季，有你在家里，感觉日子就很快乐踏实，崽崽大人！"
       ],
-      photoIds: [1, 3, 12, 16, 18, 20, 23, 24, 27]
+      photoIds: [1, 3, 12, 16, 18, 20, 23, 24, 27, 41]
     },
     {
       key: "ski",
