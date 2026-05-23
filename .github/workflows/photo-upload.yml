@@ -54,6 +54,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_VISION_MODEL: ${{ secrets.OPENAI_VISION_MODEL }}
+          OPENAI_IMAGE_MODEL: ${{ secrets.OPENAI_IMAGE_MODEL }}
+          OPENAI_IMAGE_SIZE: ${{ secrets.OPENAI_IMAGE_SIZE }}
+          OPENAI_IMAGE_QUALITY: ${{ secrets.OPENAI_IMAGE_QUALITY }}
         run: |
           python tools/process_photo_upload.py \
             --issue-body-file "$ISSUE_BODY_FILE" \

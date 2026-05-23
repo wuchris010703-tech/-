@@ -66,7 +66,7 @@ tracks: [
 
 1. 用户在仓库 Issues 里选择“照片自动更新”表单。
 2. 把多张照片拖进表单并提交。
-3. GitHub Action 自动下载图片、归类、生成卡通小卡片。
+3. GitHub Action 自动下载图片、归类，并调用图片模型生成卡通小卡片。
 4. Action 把新照片、新小卡片和更新后的 `script.js` 提交回仓库。
 5. GitHub Pages 自动重新发布网页。
 

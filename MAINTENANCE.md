@@ -35,7 +35,7 @@
 - 从 issue 正文里读取 GitHub 上传图片链接。
 - 跳过已经处理过的图片，避免重复追加。
 - 把原图压缩保存到 `public/photos/<category>/photo-xxx.jpg`。
-- 生成 4:5 的卡通小卡片 PNG，保存到 `public/art-cards/review-batch-20260521/accepted/`。
+- 随机选择蜡笔回忆卡或旅行涂鸦明信片风格，调用图片模型生成 4:5 小卡片 PNG，保存到 `public/art-cards/review-batch-20260521/accepted/`。
 - 把新照片追加到 `script.js` 的 `CONFIG.photos`。
 - 把新卡片样式追加到 `CONFIG.sketches.assignments`。
 - 对已有场景分类追加照片 ID，让页面刷新后能看到新内容。
@@ -46,19 +46,41 @@
 
 1. 如果 issue 表单指定了分类，优先使用指定分类。
 2. 如果仓库配置了 `OPENAI_API_KEY` 和 `OPENAI_VISION_MODEL` 两个 GitHub Secrets，脚本会调用视觉模型识别照片内容并生成简短中文配文。
-3. 如果没有配置视觉模型，脚本会根据照片说明、文件名和简单图像特征做保守分类。
+3. 如果没有配置视觉分类模型，脚本会根据照片说明、文件名和简单图像特征做保守分类。
 4. 如果仍然无法判断，会放入 `moments`。
+
+## 关于“回忆小卡片生成”
+
+现在的小卡片不再使用本地 PIL 滤镜。每张新照片会随机但可复现地选择一种风格：
+
+- `crayon`：遵循 `photo-crayon-style-transfer` 技能的蜡笔/彩铅纸纹回忆卡风格。
+- `postcard`：遵循 `travel-doodle-postcard` 技能的旅行涂鸦明信片风格。
+
+图片生成会调用 OpenAI 图片编辑接口，把上传照片作为输入图进行模型原生风格转换。为了避免重新生成时风格乱跳，随机选择会基于照片编号和附件链接哈希固定下来。
 
 建议后期正式使用前，在 GitHub 仓库里打开：
 
 `Settings -> Secrets and variables -> Actions -> New repository secret`
 
-添加：
+必须添加：
 
 - `OPENAI_API_KEY`
-- `OPENAI_VISION_MODEL`
 
-如果不配置这两个 Secret，流程仍然可以运行，只是分类能力会比较保守。
+建议添加：
+
+- `OPENAI_VISION_MODEL`
+- `OPENAI_IMAGE_MODEL`
+- `OPENAI_IMAGE_SIZE`
+- `OPENAI_IMAGE_QUALITY`
+
+推荐值：
+
+- `OPENAI_VISION_MODEL`：用于自动分类和配文，例如你的账号可用的视觉模型。
+- `OPENAI_IMAGE_MODEL`：用于生成小卡片；如果你的图片服务暴露的模型名是 `image2.0`，这里填 `image2.0`。如果不填，脚本默认使用 `gpt-image-1.5`。
+- `OPENAI_IMAGE_SIZE`：默认 `1024x1536`。
+- `OPENAI_IMAGE_QUALITY`：默认 `medium`。
+
+如果不配置 `OPENAI_API_KEY`，新照片可以下载，但小卡片生成会失败，网页不会提交更新。
 
 ## 关于“网页直接上传”
 
