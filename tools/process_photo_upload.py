@@ -4,14 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import mimetypes
 import os
-import random
 import re
-import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,10 +55,7 @@ CATEGORIES = {
     },
 }
 
-STYLE_SEQUENCE = ["crayon", "postcard"]
-DEFAULT_IMAGE_MODEL = "gpt-image-1.5"
-DEFAULT_IMAGE_SIZE = "1024x1536"
-DEFAULT_IMAGE_QUALITY = "medium"
+UPLOADED_CARD_STYLE = "uploaded"
 
 
 @dataclass
@@ -90,21 +84,40 @@ def main(argv: list[str] | None = None) -> int:
     issue_body = Path(args.issue_body_file).read_text(encoding="utf-8")
     issue_number = str(args.issue_number)
 
-    urls = extract_image_urls(issue_body)
+    photo_urls = extract_image_urls(extract_issue_field(issue_body, "原照片附件"))
+    card_urls = extract_image_urls(extract_issue_field(issue_body, "卡通小卡片附件"))
+    if not photo_urls and not card_urls:
+        photo_urls = extract_image_urls(extract_issue_field(issue_body, "照片附件"))
     summary_lines = [
         "## 照片自动更新结果",
         "",
         f"- Issue: #{issue_number}",
-        f"- 发现图片链接：{len(urls)} 个",
+        f"- 发现原照片：{len(photo_urls)} 张",
+        f"- 发现卡通小卡片：{len(card_urls)} 张",
     ]
 
-    if not urls:
+    if not photo_urls:
         summary_lines.extend([
             "",
-            "没有在 issue 正文里找到图片附件。请把照片拖到“照片附件”输入框后再提交。",
+            "没有在 issue 正文里找到原照片附件。请把照片拖到“原照片附件”输入框后再提交。",
         ])
         write_summary(args.summary_file, summary_lines)
         return 0
+    if not card_urls:
+        summary_lines.extend([
+            "",
+            "没有在 issue 正文里找到卡通小卡片附件。请把已经生成好的小卡片拖到“卡通小卡片附件”输入框后再提交。",
+        ])
+        write_summary(args.summary_file, summary_lines)
+        return 1
+    if len(photo_urls) != len(card_urls):
+        summary_lines.extend([
+            "",
+            "原照片和卡通小卡片数量不一致，网页没有更新。",
+            "请确认第 1 张小卡片对应第 1 张原照片，第 2 张对应第 2 张，以此类推。",
+        ])
+        write_summary(args.summary_file, summary_lines)
+        return 1
 
     script_text = SCRIPT_PATH.read_text(encoding="utf-8")
     existing_hashes = set(re.findall(r'sourceHash:\s*"([^"]+)"', script_text))
@@ -114,18 +127,21 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory(prefix="photo-upload-") as tmp:
         tmp_dir = Path(tmp)
-        uploaded = []
+        uploaded: list[tuple[UploadedImage, UploadedImage]] = []
         download_failures = 0
-        for index, url in enumerate(urls, 1):
-            source_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
+        for index, (photo_url, card_url) in enumerate(zip(photo_urls, card_urls), 1):
+            source_hash = hashlib.sha1(photo_url.encode("utf-8")).hexdigest()[:12]
             if source_hash in existing_hashes:
-                summary_lines.append(f"- 跳过已处理图片：{source_hash}")
+                summary_lines.append(f"- 跳过已处理照片：{source_hash}")
                 continue
             try:
-                uploaded.append(download_image(url, source_hash, tmp_dir, index))
+                photo_item = download_image(photo_url, source_hash, tmp_dir, index, "photo")
+                card_hash = hashlib.sha1(card_url.encode("utf-8")).hexdigest()[:12]
+                card_item = download_image(card_url, card_hash, tmp_dir, index, "card")
+                uploaded.append((photo_item, card_item))
             except Exception as exc:  # noqa: BLE001
                 download_failures += 1
-                summary_lines.append(f"- 下载失败：{url} ({exc})")
+                summary_lines.append(f"- 第 {index} 组附件下载失败：{exc}")
 
         if not uploaded:
             if download_failures:
@@ -136,23 +152,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if download_failures else 0
 
         new_photos: list[NewPhoto] = []
-        for offset, item in enumerate(uploaded):
+        for offset, (photo_item, card_item) in enumerate(uploaded):
             photo_id = next_id + offset
-            category, ai_caption = classify_photo(item.temp_path, item.filename_hint, notes, selected_category)
-            style = choose_art_style(photo_id, item.source_hash)
-            caption = caption_for_photo(category, notes, ai_caption, offset + 1, len(uploaded))
-            photo_file, source_path = write_site_photo(item.temp_path, category, photo_id)
+            category = classify_photo(photo_item.temp_path, photo_item.filename_hint, notes, selected_category)
+            style = UPLOADED_CARD_STYLE
+            caption = caption_for_photo(category, notes, offset + 1, len(uploaded))
+            photo_file, source_path = write_site_photo(photo_item.temp_path, category, photo_id)
             card_path = CARD_ROOT / f"photo-{photo_id:03d}-{style}.png"
-            try:
-                generate_art_card(source_path, card_path, style, category, caption, notes)
-            except Exception as exc:  # noqa: BLE001
-                summary_lines.extend([
-                    f"- 小卡片生成失败：photo-{photo_id:03d} ({exc})",
-                    "",
-                    "网页没有更新。请检查 `OPENAI_API_KEY`、`OPENAI_IMAGE_MODEL` 和图片模型额度后重新触发流程。",
-                ])
-                write_summary(args.summary_file, summary_lines)
-                return 1
+            write_uploaded_card(card_item.temp_path, card_path)
             new_photos.append(
                 NewPhoto(
                     id=photo_id,
@@ -161,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                     style=style,
                     caption=caption,
                     issue_number=issue_number,
-                    source_hash=item.source_hash,
+                    source_hash=photo_item.source_hash,
                     source_path=source_path,
                     card_path=card_path,
                 )
@@ -239,7 +246,7 @@ def category_from_choice(value: str) -> str | None:
     return None
 
 
-def download_image(url: str, source_hash: str, tmp_dir: Path, index: int) -> UploadedImage:
+def download_image(url: str, source_hash: str, tmp_dir: Path, index: int, kind: str) -> UploadedImage:
     import requests
 
     headers = {"User-Agent": "photo-upload-workflow"}
@@ -257,77 +264,21 @@ def download_image(url: str, source_hash: str, tmp_dir: Path, index: int) -> Upl
     if ext == ".jpe":
         ext = ".jpg"
     filename_hint = Path(url.split("?")[0]).name or f"upload-{index}{ext}"
-    temp_path = tmp_dir / f"upload-{index:03d}{ext}"
+    temp_path = tmp_dir / f"{kind}-{index:03d}{ext}"
     temp_path.write_bytes(response.content)
     return UploadedImage(url=url, source_hash=source_hash, temp_path=temp_path, filename_hint=filename_hint)
 
 
-def classify_photo(image_path: Path, filename_hint: str, notes: str, selected_category: str | None) -> tuple[str, str | None]:
+def classify_photo(image_path: Path, filename_hint: str, notes: str, selected_category: str | None) -> str:
     if selected_category:
-        return selected_category, None
-
-    ai_result = classify_with_openai(image_path, filename_hint, notes)
-    if ai_result:
-        category = ai_result.get("category")
-        caption = ai_result.get("caption")
-        if category in CATEGORIES:
-            return category, caption if isinstance(caption, str) else None
+        return selected_category
 
     text_category = classify_from_text(f"{filename_hint} {notes}")
     if text_category:
-        return text_category, None
+        return text_category
 
     stat_category = classify_from_image_stats(image_path)
-    return stat_category or "moments", None
-
-
-def classify_with_openai(image_path: Path, filename_hint: str, notes: str) -> dict[str, str] | None:
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_VISION_MODEL")
-    if not api_key or not model:
-        return None
-
-    import requests
-
-    mime = mimetypes.guess_type(str(image_path))[0] or "image/jpeg"
-    data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
-    category_list = ", ".join(CATEGORIES.keys())
-    payload = {
-        "model": model,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Classify this memory photo for a Chinese personal photo website. "
-                            f"Allowed categories: {category_list}. "
-                            "Return compact JSON with keys category and caption. "
-                            "The caption should be warm Chinese, <= 28 Chinese characters. "
-                            f"Filename: {filename_hint}. Notes: {notes or 'none'}"
-                        ),
-                    },
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            }
-        ],
-    }
-    try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload,
-            timeout=60,
-        )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        result = json.loads(content)
-        return result if isinstance(result, dict) else None
-    except Exception as exc:  # noqa: BLE001
-        print(f"OpenAI classification skipped after error: {exc}", file=sys.stderr)
-        return None
+    return stat_category or "moments"
 
 
 def classify_from_text(text: str) -> str | None:
@@ -355,9 +306,7 @@ def classify_from_image_stats(image_path: Path) -> str | None:
     return None
 
 
-def caption_for_photo(category: str, notes: str, ai_caption: str | None, index: int, total: int) -> str:
-    if ai_caption:
-        return ai_caption.strip()
+def caption_for_photo(category: str, notes: str, index: int, total: int) -> str:
     if notes and total == 1:
         return notes[:80]
     if notes:
@@ -368,11 +317,6 @@ def caption_for_photo(category: str, notes: str, ai_caption: str | None, index: 
 def next_photo_id(script_text: str) -> int:
     ids = [int(match) for match in re.findall(r"\bid:\s*(\d+)", script_text)]
     return max(ids, default=0) + 1
-
-
-def choose_art_style(photo_id: int, source_hash: str) -> str:
-    rng = random.Random(f"{photo_id}:{source_hash}")
-    return rng.choice(STYLE_SEQUENCE)
 
 
 def write_site_photo(image_path: Path, category: str, photo_id: int) -> tuple[str, Path]:
@@ -391,106 +335,16 @@ def write_site_photo(image_path: Path, category: str, photo_id: int) -> tuple[st
     return relative_file, target
 
 
-def generate_art_card(source_path: Path, target_path: Path, style: str, category: str, caption: str, notes: str) -> None:
+def write_uploaded_card(image_path: Path, target_path: Path) -> None:
+    from PIL import Image, ImageOps
+
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("missing OPENAI_API_KEY")
-
-    import requests
-
-    model = os.getenv("OPENAI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL).strip() or DEFAULT_IMAGE_MODEL
-    size = os.getenv("OPENAI_IMAGE_SIZE", DEFAULT_IMAGE_SIZE).strip() or DEFAULT_IMAGE_SIZE
-    quality = os.getenv("OPENAI_IMAGE_QUALITY", DEFAULT_IMAGE_QUALITY).strip() or DEFAULT_IMAGE_QUALITY
-    prompt = build_art_card_prompt(style, category, caption, notes)
-
-    data = {
-        "model": model,
-        "prompt": prompt,
-        "n": "1",
-        "size": size,
-        "quality": quality,
-        "output_format": "png",
-    }
-    mime = mimetypes.guess_type(str(source_path))[0] or "image/jpeg"
-    with source_path.open("rb") as image_file:
-        response = requests.post(
-            "https://api.openai.com/v1/images/edits",
-            headers={"Authorization": f"Bearer {api_key}"},
-            data=data,
-            files={"image": (source_path.name, image_file, mime)},
-            timeout=300,
-        )
-
-    if not response.ok:
-        raise RuntimeError(f"image model request failed: {response.status_code} {response.text[:500]}")
-
-    payload = response.json()
-    image_item = payload.get("data", [{}])[0]
-    b64_png = image_item.get("b64_json")
-    if b64_png:
-        target_path.write_bytes(base64.b64decode(b64_png))
-        return
-
-    image_url = image_item.get("url")
-    if image_url:
-        image_response = requests.get(image_url, timeout=120)
-        image_response.raise_for_status()
-        target_path.write_bytes(image_response.content)
-        return
-
-    raise RuntimeError("image model response did not include b64_json or url")
-
-
-def build_art_card_prompt(style: str, category: str, caption: str, notes: str) -> str:
-    category_label = CATEGORIES.get(category, CATEGORIES["moments"])["label"]
-    scene_note = scene_prompt_note(category)
-    context = (
-        f"Photo category: {category} ({category_label}). "
-        f"Memory caption/context in Chinese: {caption or 'none'}. "
-        f"Uploader notes: {notes or 'none'}. "
-        "Output should be a vertical 4:5 memory-card image for a Chinese couple memory webpage."
-    )
-
-    if style == "crayon":
-        return (
-            "Use case: model-native photo style-transfer, following the photo-crayon-style-transfer skill. "
-            "Edit the provided real camera photo into a warm handmade crayon and colored-pencil memory-card illustration. "
-            "Preserve the original composition, aspect ratio, people, facial direction, pose, clothing, important objects, "
-            "background, camera angle, and scene layout. Keep identity recognizable with simplified illustrated facial features. "
-            "Use visible crayon wax texture, colored-pencil shading, warm paper grain, uneven soft outlines, gentle warm colors, "
-            "layered handmade strokes, and a cozy personal album feeling. "
-            "Do not add text, watermark, UI, stickers, decorative border, extra people, unrelated props, anime style, mascot style, "
-            "flat vector look, photorealistic filter, oil painting, or thick black comic outlines. "
-            f"{scene_note} {context}"
-        )
-
-    return (
-        "Use case: model-native photo style-transfer, following the travel-doodle-postcard skill. "
-        "Edit the provided real camera photo into a humorous cute hand-drawn travel diary comic postcard. "
-        "Preserve the original composition, aspect ratio, main subjects, pose, camera angle, setting, background objects, "
-        "outfits, and recognizable identity. Transform the actual photo into rough ink-line illustration with colored-pencil "
-        "shading, pastel colors, visible paper texture, slightly uneven handmade outlines, and clean sketchbook energy. "
-        "Add only a small amount of integrated doodle decoration: 2-4 very short handwritten Chinese notes, 1-2 speech or "
-        "thought bubbles, 1-3 arrows, and 1-2 tiny anthropomorphic object details where natural. Keep notes under 8 Chinese "
-        "characters when possible and do not cover faces. Avoid unrelated new objects, watermark, UI, heavy decorative border, "
-        "childish cartoon, anime, mascot style, flat vector, or photorealistic filter. "
-        f"{scene_note} {context}"
-    )
-
-
-def scene_prompt_note(category: str) -> str:
-    notes = {
-        "ski": "Keep snow, helmets, goggles, jackets, mountain or snow background, selfie framing, and bright winter atmosphere recognizable. Possible tiny notes for doodle style: 雪地勇士, coach上线, 摔倒也可爱.",
-        "home": "Keep the home setting, room layout, table objects, laptop, sofa, bed, original selfie angle, and warm everyday atmosphere recognizable. Possible tiny notes for doodle style: 熊熊家, 今日贴贴, 在家真好.",
-        "cooking": "Keep food, cookware, table objects, kitchen or cafe setting, and casual everyday feeling recognizable. Possible tiny notes for doodle style: 美厨娘到, 今日好吃, 开饭啦.",
-        "outing": "Keep location cues, road signs, buildings, bags, outfits, travel framing, and outdoor atmosphere recognizable. Possible tiny notes for doodle style: 出门小坐标, 今日路线, 走走停停.",
-        "hospital": "Keep the hospital or clinic context, clothing, bed/chair/table objects, and quiet accompanied feeling recognizable. Keep the tone warm and gentle, not comedic.",
-        "video": "Keep the screen-call or screenshot feeling, faces, layout, device/screen cues, and sense of distance-but-close connection recognizable.",
-        "games": "Keep entertainment objects, screen/game/movie context, seating, expressions, and playful relaxed atmosphere recognizable.",
-        "moments": "Keep the original scene, people, pose, camera angle, and important objects recognizable; make it feel like a small saved memory.",
-    }
-    return notes.get(category, notes["moments"])
+    with Image.open(image_path) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in {"RGB", "RGBA"}:
+            image = image.convert("RGBA")
+        image.thumbnail((1800, 1800))
+        image.save(target_path, "PNG", optimize=True)
 
 
 def append_photos_to_script(script_text: str, photos: list[NewPhoto]) -> str:

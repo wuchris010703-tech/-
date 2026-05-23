@@ -37,7 +37,8 @@ const CONFIG = {
     basePath: "public/art-cards/review-batch-20260521/accepted/",
     styleNames: {
       crayon: "蜡笔小卡片",
-      postcard: "旅行涂鸦小卡片"
+      postcard: "旅行涂鸦小卡片",
+      uploaded: "用户上传小卡片"
     },
     assignments: {
       1: "postcard",

@@ -13,7 +13,7 @@
 
 - `.github/ISSUE_TEMPLATE/photo_upload.yml`：照片投稿表单。
 - `.github/workflows/photo-upload.yml`：自动处理照片的 GitHub Action。
-- `tools/process_photo_upload.py`：下载图片、分类、生成卡通小卡片、更新 `script.js` 的处理脚本。
+- `tools/process_photo_upload.py`：下载原照片和用户上传的小卡片、分类、更新 `script.js` 的处理脚本。
 - `UPLOAD_PHOTOS.md`：给普通上传者看的详细操作流程。
 
 使用流程：
@@ -22,20 +22,22 @@
 2. 打开仓库的 `Issues`。
 3. 点击 `New issue`。
 4. 选择“照片自动更新”。
-5. 在“照片附件”里拖入多张 JPG/PNG 图片。
-6. 分类可以选择“自动识别”，也可以指定同一批照片的类别。
-7. 提交 issue 后，GitHub Action 会自动运行。
-8. Action 成功后会提交新照片、新卡通小卡片和更新后的 `script.js`。
-9. GitHub Pages 会在仓库更新后重新发布网页。
+5. 在“原照片附件”里拖入多张 JPG/PNG 图片。
+6. 在“卡通小卡片附件”里拖入已经生成好的小卡片，数量和顺序必须与原照片一致。
+7. 分类可以选择“自动识别”，也可以指定同一批照片的类别。
+8. 提交 issue 后，GitHub Action 会自动运行。
+9. Action 成功后会提交新照片、新小卡片和更新后的 `script.js`。
+10. GitHub Pages 会在仓库更新后重新发布网页。
 
 ## 当前自动化能做什么
 
 脚本会自动完成：
 
-- 从 issue 正文里读取 GitHub 上传图片链接。
-- 跳过已经处理过的图片，避免重复追加。
+- 从 issue 正文里分别读取“原照片附件”和“卡通小卡片附件”链接。
+- 检查原照片和小卡片数量是否一致，并按出现顺序一一配对。
+- 跳过已经处理过的原照片，避免重复追加。
 - 把原图压缩保存到 `public/photos/<category>/photo-xxx.jpg`。
-- 随机选择蜡笔回忆卡或旅行涂鸦明信片风格，调用图片模型生成 4:5 小卡片 PNG，保存到 `public/art-cards/review-batch-20260521/accepted/`。
+- 把用户上传的小卡片规范为 PNG，保存到 `public/art-cards/review-batch-20260521/accepted/photo-xxx-uploaded.png`。
 - 把新照片追加到 `script.js` 的 `CONFIG.photos`。
 - 把新卡片样式追加到 `CONFIG.sketches.assignments`。
 - 对已有场景分类追加照片 ID，让页面刷新后能看到新内容。
@@ -45,42 +47,20 @@
 默认情况下，脚本会按以下顺序分类：
 
 1. 如果 issue 表单指定了分类，优先使用指定分类。
-2. 如果仓库配置了 `OPENAI_API_KEY` 和 `OPENAI_VISION_MODEL` 两个 GitHub Secrets，脚本会调用视觉模型识别照片内容并生成简短中文配文。
-3. 如果没有配置视觉分类模型，脚本会根据照片说明、文件名和简单图像特征做保守分类。
-4. 如果仍然无法判断，会放入 `moments`。
+2. 如果没有指定分类，脚本会根据照片说明、文件名和简单图像特征做保守分类。
+3. 如果仍然无法判断，会放入 `moments`。
 
-## 关于“回忆小卡片生成”
+## 关于“回忆小卡片”
 
-现在的小卡片不再使用本地 PIL 滤镜。每张新照片会随机但可复现地选择一种风格：
+系统不再自动生成小卡片，也不需要配置 OpenAI Secret。用户需要自己提前生成或准备好卡通小卡片，并在 issue 表单里上传。
 
-- `crayon`：遵循 `photo-crayon-style-transfer` 技能的蜡笔/彩铅纸纹回忆卡风格。
-- `postcard`：遵循 `travel-doodle-postcard` 技能的旅行涂鸦明信片风格。
+配对规则：
 
-图片生成会调用 OpenAI 图片编辑接口，把上传照片作为输入图进行模型原生风格转换。为了避免重新生成时风格乱跳，随机选择会基于照片编号和附件链接哈希固定下来。
+- 第 1 张原照片对应第 1 张小卡片。
+- 第 2 张原照片对应第 2 张小卡片。
+- 以此类推。
 
-建议后期正式使用前，在 GitHub 仓库里打开：
-
-`Settings -> Secrets and variables -> Actions -> New repository secret`
-
-必须添加：
-
-- `OPENAI_API_KEY`
-
-建议添加：
-
-- `OPENAI_VISION_MODEL`
-- `OPENAI_IMAGE_MODEL`
-- `OPENAI_IMAGE_SIZE`
-- `OPENAI_IMAGE_QUALITY`
-
-推荐值：
-
-- `OPENAI_VISION_MODEL`：用于自动分类和配文，例如你的账号可用的视觉模型。
-- `OPENAI_IMAGE_MODEL`：用于生成小卡片；如果你的图片服务暴露的模型名是 `image2.0`，这里填 `image2.0`。如果不填，脚本默认使用 `gpt-image-1.5`。
-- `OPENAI_IMAGE_SIZE`：默认 `1024x1536`。
-- `OPENAI_IMAGE_QUALITY`：默认 `medium`。
-
-如果不配置 `OPENAI_API_KEY`，新照片可以下载，但小卡片生成会失败，网页不会提交更新。
+如果数量不一致，Action 会失败并留言说明，网页不会更新。
 
 ## 关于“网页直接上传”
 

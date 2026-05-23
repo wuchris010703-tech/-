@@ -1,12 +1,14 @@
 name: 照片自动更新
-description: 上传一批新照片，让系统整理后更新网页
+description: 上传一批新照片和对应小卡片，让系统整理后更新网页
 title: "照片更新："
 labels: ["photo-upload"]
 body:
   - type: markdown
     attributes:
       value: |
-        把照片拖到下面的“照片附件”区域。提交后，GitHub Action 会读取附件、整理分类、生成卡通小卡片，并把更新提交回网页仓库。
+        请同时上传原照片和已经生成好的卡通小卡片。系统只负责整理、配对和更新网页，不再自动生成小卡片。
+
+        重要：原照片和小卡片数量必须一致，并且按上传顺序一一对应。
 
         如果自动分类不准，可以重新开一个 issue 或手动调整生成的 `script.js`。
   - type: dropdown
@@ -37,8 +39,16 @@ body:
   - type: textarea
     id: photos
     attributes:
-      label: 照片附件
-      description: 把 JPG、PNG、HEIC 转好的图片拖到这里。建议一次上传同一批相关照片。
-      placeholder: 把照片拖到这个输入框里，GitHub 会自动生成图片链接。
+      label: 原照片附件
+      description: 把原始照片拖到这里。建议使用 JPG 或 PNG，HEIC 请先转成 JPG。
+      placeholder: 把原照片拖到这个输入框里，GitHub 会自动生成图片链接。
+    validations:
+      required: true
+  - type: textarea
+    id: art_cards
+    attributes:
+      label: 卡通小卡片附件
+      description: 把已经生成好的卡通小卡片拖到这里。数量和顺序必须与上面的原照片一致。
+      placeholder: 把卡通小卡片拖到这个输入框里。第 1 张小卡片对应第 1 张原照片，第 2 张对应第 2 张，以此类推。
     validations:
       required: true
